@@ -5,6 +5,7 @@ var path = require('path')
   , authorize = gruntHelpers.authorize
   , tail = gruntHelpers.tail
   , buildApp = gruntHelpers.buildApp
+  , buildSafariLauncherApp = gruntHelpers.buildSafariLauncherApp
   , signApp = gruntHelpers.signApp
   , setupAndroidBootstrap = gruntHelpers.setupAndroidBootstrap
   , setupAndroidApp = gruntHelpers.setupAndroidApp
@@ -17,23 +18,23 @@ var path = require('path')
   , generateAppiumIo = gruntHelpers.generateAppiumIo
   , setDeviceConfigVer = gruntHelpers.setDeviceConfigVer
   , setGitRev = gruntHelpers.setGitRev
-  , getGitRev = require('./app/helpers').getGitRev
+  , getGitRev = require('./lib/helpers').getGitRev
   , runTestsWithServer = gruntHelpers.runTestsWithServer;
 
 module.exports = function(grunt) {
   grunt.initConfig({
     jshint: {
-      all: ['*.js', 'app/*.js', 'app/test/unit/*.js', 'instruments/*.js', 'test/functional/*.js', 'test/unit/*.js', 'test/functional/appium/*.js', 'test/functional/apidemos/*.js', 'test/functional/testapp/*.js', 'test/functional/uicatalog/*.js', 'test/functional/webview/*.js', 'test/helpers/*.js', 'test/functional/safari/*.js', 'test/functional/prefs/*.js', 'test/functional/selendroid/*.js', 'test/functional/firefoxos/*.js', 'app/uiauto/appium/app.js', 'app/uiauto/appium/binding.js', 'app/uiauto/appium/element.js', 'app/uiauto/appium/utility.js', 'app/uiauto/lib/instruments_client.js', 'app/uiauto/lib/status.js', 'android/*.js', 'app/hybrid/ios/*.js', 'app/hybrid/firefox/*.js']
+      files: ['*.js', './**/*.js']
       , options: {
         laxcomma: true
-        , es5: true
         , trailing: true
         , node: true
         , strict: true
+        , ignores: ['./submodules/**/*.js', './node_modules/**/*.js', './lib/devices/ios/webdriver-atoms/*.js', './sample-code/**/*.js', './test/harmony/**/*.js', './test/functional/_joined/*.js', './lib/server/static/**/*.js', './lib/devices/firefoxos/atoms/*.js', './lib/devices/ios/uiauto/**/*.js']
       }
     }
     , mochaTest: {
-      unit: ['app/test/unit/*.js']
+      unit: ['test/unit/*.js']
       , appiumutils: ['test/functional/appium/appiumutils.js']
     }
     , mochaTestWithServer: {
@@ -106,6 +107,9 @@ module.exports = function(grunt) {
   });
   grunt.registerTask('buildApp', "Build the test app", function(appDir, sdk) {
     buildApp(appDir, this.async(), sdk);
+  });
+  grunt.registerTask('buildSafariLauncherApp', "Build the SafariLauncher app", function(sdk) {
+    buildSafariLauncherApp(this.async(), sdk);
   });
   grunt.registerTask('signApp', "Sign the test app", function(certName) {
     signApp("TestApp", certName, this.async());

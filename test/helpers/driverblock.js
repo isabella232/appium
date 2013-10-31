@@ -1,4 +1,4 @@
-/*global beforeEach:true, afterEach:true, describe:true */
+/*global beforeEach:true, afterEach:true, describe:true, it:true */
 "use strict";
 
 var wd = require('wd')
@@ -9,13 +9,13 @@ var wd = require('wd')
   , should = require("should")
   , defaultHost = '127.0.0.1'
   , defaultPort = process.env.APPIUM_PORT || 4723
-  , defaultIosVer = '6.1'
+  , defaultIosVer = '7.0'
+  , domain = require('domain')
   , defaultCaps = {
       browserName: ''
       , device: 'iPhone Simulator'
       , platform: 'Mac'
       , version: defaultIosVer
-      //, newCommandTimeout: 60
     };
 
 if (process.env.SAUCE_ACCESS_KEY && process.env.SAUCE_USERNAME) {
@@ -30,29 +30,55 @@ var driverBlock = function(tests, host, port, caps, extraCaps) {
   port = (typeof port === "undefined" || port === null) ? _.clone(defaultPort) : port;
   caps = (typeof caps === "undefined" || caps === null) ? _.clone(defaultCaps) : caps;
   caps = _.extend(caps, typeof extraCaps === "undefined" ? {} : extraCaps);
+  caps.launchTimeout = 30000;
   var driverHolder = {driver: null, sessionId: null};
   var expectConnError = extraCaps && extraCaps.expectConnError;
 
   beforeEach(function(done) {
     driverHolder.driver = wd.remote(host, port);
-    driverHolder.driver.init(caps, function(err, sessionId) {
-      if (expectConnError && err) {
-        driverHolder.connError = err;
-        return done();
-      }
-      should.not.exist(err);
-      driverHolder.sessionId = sessionId;
-      driverHolder.driver.setImplicitWaitTimeout(5000, function(err) {
-        should.not.exist(err);
-        done();
+    var timeoutMs = caps.launchTimeout + 5000;
+    var waitBetweenTries = 3000;
+    var tries = 0;
+
+    var getSessionWithRetry = function() {
+      var alreadyReturned = false;
+      var respond = function(err) {
+        if (!alreadyReturned) {
+          alreadyReturned = true;
+          if (err && tries < 3) {
+            tries++;
+            console.log("Could not get session, trying again");
+            setTimeout(getSessionWithRetry, waitBetweenTries);
+          } else {
+            done(err);
+          }
+        }
+      };
+
+      setTimeout(function() {
+        respond(new Error("Timed out waiting for session"));
+      }, timeoutMs);
+
+      driverHolder.driver.init(caps, function(err, sessionId) {
+        if (expectConnError && err) {
+          driverHolder.connError = err;
+          return respond();
+        } else if (err) {
+          return respond(err);
+        }
+
+        driverHolder.sessionId = sessionId;
+        driverHolder.driver.setImplicitWaitTimeout(5000, respond);
       });
-    });
+    };
+
+    getSessionWithRetry();
   });
 
   afterEach(function(done) {
     driverHolder.driver.quit(function(err) {
       if (err && err.status && err.status.code != 6) {
-        throw err;
+        done(err);
       }
       if (host.indexOf("saucelabs") !== -1 && sauceRest !== null) {
         sauceRest.updateJob(driverHolder.sessionId, {
@@ -91,7 +117,7 @@ var describeForSafari = function() {
       , app: 'safari'
       , device: 'iPhone Simulator'
       , platform: 'Mac'
-      , version: defaultIosVer
+      , version: "6.1"
     };
     return describeWithDriver(desc, tests, host, port, caps, extraCaps, undefined, onlyify);
   };
@@ -196,6 +222,18 @@ var describeForSauce = function(appUrl, device) {
 
     return describeWithDriver(desc, tests, host, port, caps, extraCaps, 500000);
   };
+};
+
+module.exports.it = function(behavior, test) {
+  it(behavior, function(done) {
+    var d = domain.create();
+    d.on('error', function(err) {
+      done(err);
+    });
+    d.run(function() {
+      test(done);
+    });
+  });
 };
 
 module.exports.block = driverBlock;

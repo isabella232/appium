@@ -1,4 +1,3 @@
-/*global it:true */
 "use strict";
 
 /*
@@ -8,6 +7,7 @@
  */
 
 var describeWd = require('../../helpers/driverblock.js').describeForApp('TestApp')
+  , it = require("../../helpers/driverblock.js").it
   , should = require('should');
 
 describeWd('command timeout', function(h) {
@@ -19,6 +19,21 @@ describeWd('command timeout', function(h) {
         res.should.eql(37);
         done();
       });
+    });
+  });
+
+  it('should die with short command timeout', function(done) {
+    var params = {timeout: 3};
+    h.driver.execute("mobile: setCommandTimeout", [params], function(err) {
+      should.not.exist(err);
+      var next = function() {
+        h.driver.elementByName('dont exist dogg', function(err) {
+          should.exist(err);
+          [13, 6].should.include(err.status);
+          done();
+        });
+      };
+      setTimeout(next, 5500);
     });
   });
 });

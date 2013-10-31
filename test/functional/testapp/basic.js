@@ -1,10 +1,10 @@
 // This is basically a port of webdriver-test.py
 // https://github.com/hugs/appium/blob/master/sample-code/webdriver-test.py
-/*global it:true */
 "use strict";
 
 var assert = require("assert")
   , describeWd = require("../../helpers/driverblock.js").describeForApp('TestApp')
+  , it = require("../../helpers/driverblock.js").it
   , should = require('should')
   , _ = require("underscore");
 
@@ -114,8 +114,8 @@ describeWd('calc app', function(h) {
         driver.acceptAlert(function(){
           buttons[1].click(function() {
             driver.alertText(function(err, value){
-              // maybe we could get alert body text too?
-              assert.equal(value, "Cool title");
+              value.should.include("Cool title");
+              value.should.include("this alert is so cool.");
               driver.dismissAlert(done);
             });
           });

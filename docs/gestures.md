@@ -18,7 +18,9 @@ While the Selenium WebDriver spec has support for certain kinds of mobile intera
   * where to start the swipe on screen or element
   * where to end the swipe on screen or element
 * **scroll to** (element)
+* **slider**
 * **shake**
+* **longTap** (element)
 * set the **orientation** with option:
   * new orientation (landscape or portrait)
 
@@ -123,7 +125,17 @@ In these examples, note that the element parameter is always optional.
   tapObject.put("element", ((RemoteWebElement) row).getId()); // the id of the element we want to tap
   js.executeScript("mobile: tap", tapObject);
   ```
-
+  ```java
+  //In iOS app, if UI element visbile property is "false". 
+  //Using element location tap on it.
+  WebElement element = wd.findElement(By.xpath("//window[1]/scrollview[1]/image[1]"));
+  JavascriptExecutor js = (JavascriptExecutor) wd;
+  HashMap<String, Double> tapObject = new HashMap<String, Double>();
+  tapObject.put("x", (double) element.getLocation().getX()); 
+  tapObject.put("y", (double) element.getLocation().getY()); 
+  tapObject.put("duration", 0.1);
+  js.executeScript("mobile: tap", tapObject);
+  ```
 * **Python:**
 
   ```python
@@ -209,6 +221,17 @@ In these examples, note that the element parameter is always optional.
   swipeObject.put("duration", 1.8);
   js.executeScript("mobile: swipe", swipeObject);
   ```
+  
+### Slider
+ 
+ * **Java**
+ 
+  ```java
+  // slider values can be string representations of numbers between 0 and 1
+  // e.g., "0.1" is 10%, "1.0" is 100%
+  WebElement slider =  wd.findElement(By.xpath("//window[1]/slider[1]"));
+  slider.sendKeys("0.1");
+  ```
 
 ### Set orientation
 
@@ -222,4 +245,27 @@ In these examples, note that the element parameter is always optional.
 * **Python:**
   ```python
   driver.orientation = "LANDSCAPE"
+  ```
+
+### longTap
+ 
+ * **c#**
+ 
+  ```c#
+  // long tap an element
+  // 
+  Dictionary<string, object> parameters = new Dictionary<string, object>();
+  parameters.Add("using", _attributeType);
+  parameters.Add("value", _attribute);
+  Response response = rm.executescript(DriverCommand.FindElement, parameters);
+  Dictionary<string, object> elementDictionary = response.Value as Dictionary<string, object>;
+  string id = null;
+  if (elementDictionary != null)
+  {
+     id = (string)elementDictionary["ELEMENT"];
+  }
+  IJavaScriptExecutor js = (IJavaScriptExecutor)remoteDriver;
+  Dictionary<String, String> longTapObject = new Dictionary<String, String>();
+  longTapObject.Add("element", id);
+  js.ExecuteScript("mobile: longClick", longTapObject);
   ```

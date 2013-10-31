@@ -1,11 +1,12 @@
-/*global it:true beforeEach:true*/
+/*global beforeEach:true */
 "use strict";
 
 var path = require('path')
-  , appPath = path.resolve(__dirname, "../../../sample-code/apps/WebViewDemo/target/selendroid-test-app-0.5.0.apk")
+  , appPath = path.resolve(__dirname, "../../../sample-code/apps/WebViewDemo/target/selendroid-test-app-0.6.0-SNAPSHOT.apk")
   , appPkg = "io.selendroid.testapp"
   , appAct = ".HomeScreenActivity"
   , driverBlock = require("../../helpers/driverblock.js")
+  , it = driverBlock.it
   , describeWd = driverBlock.describeForApp(appPath, "selendroid", appPkg, appAct)
   , should = require('should');
 
@@ -33,7 +34,9 @@ describeWd('web view', function(h) {
     setTimeout(function() {
       h.driver.elementById('buttonStartWebView', function(err, el) {
         el.click(function(err) {
+          should.not.exist(err);
           h.driver.window('WEBVIEW', function(err) {
+            should.not.exist(err);
             done();
           });
         });

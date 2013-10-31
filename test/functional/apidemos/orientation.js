@@ -1,4 +1,3 @@
-/*global it:true */
 "use strict";
 
 var path = require('path')
@@ -7,11 +6,13 @@ var path = require('path')
   , appAct = ".ApiDemos"
   , describeWd = require("../../helpers/driverblock.js").describeForApp(appPath,
       "android", appPkg, appAct)
+  , it = require("../../helpers/driverblock.js").it
   , should = require('should');
 
 describeWd('orientation', function(h) {
   it('should rotate screen to landscape', function(done) {
     h.driver.setOrientation("LANDSCAPE", function(err) {
+      should.not.exist(err);
       var next = function() {
         h.driver.getOrientation(function(err, orientation) {
           orientation.should.equal("LANDSCAPE");
