@@ -55,5 +55,50 @@ describeWd('basic', function(h) {
       done();
     });
   });
+
+  it('should be able to set location', function(done) {
+    var locOpts = {latitude: "27.17", longitude: "78.04"};
+    h.driver.execute("mobile: setLocation", [locOpts], function(err) {
+      should.not.exist(err);
+      done();
+    });
+  });
+
+  it('should error out nicely with incompatible commands', function(done) {
+    h.driver.execute("mobile: flick", [{}], function(err) {
+      should.exist(err);
+      err.status.should.equal(9);
+      err.cause.value.origValue.should.contain('mobile:');
+      done();
+    });
+  });
+
 });
 
+describeWd('command timeouts', function(h) {
+  it('should die with short timeout', function(done) {
+    setTimeout(function() {
+      h.driver.elementByName('Animation', function(err, el) {
+        should.exist(err);
+        should.not.exist(el);
+        [13, 6].should.include(err.status);
+        done();
+      });
+    }, 5000);
+  });
+  it('should not die if commands come in', function(done) {
+    var start = Date.now();
+    var find = function() {
+      h.driver.elementByName('Animation', function(err, el) {
+        should.not.exist(err);
+        should.exist(el);
+        if ((Date.now() - start) < 5000) {
+          setTimeout(find, 500);
+        } else {
+          done();
+        }
+      });
+    };
+    find();
+  });
+}, null, null, {newCommandTimeout: 3});

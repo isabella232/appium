@@ -11,7 +11,10 @@ should_reset_selendroid=false
 should_reset_gappium=false
 should_reset_firefoxos=false
 should_reset_realsafari=false
+code_sign_identity='';
+provisioning_profile='';
 include_dev=false
+prod_deps=false
 appium_home=$(pwd)
 reset_successful=false
 has_reset_unlock_apk=false
@@ -26,18 +29,26 @@ do
         "--android") should_reset_android=true;;
         "--ios") should_reset_ios=true;;
         "--real-safari") should_reset_realsafari=true;;
+        "--code-sign") code_sign_identity=$2;;
+        "--profile") provisioning_profile=$2;;
         "--selendroid") should_reset_selendroid=true;;
         "--firefoxos") should_reset_firefoxos=true;;
         "--gappium") should_reset_gappium=true;;
         "--dev") include_dev=true;;
+        "--prod") prod_deps=true;;
         "-v") verbose=true;;
         "--verbose") verbose=true;;
         "--hardcore") hardcore=true;;
     esac
-    shift
+    if [[ -n "$2" ]] && [[ "$2" != --* ]]; then
+      shift
+      shift
+    else
+      shift
+    fi
 done
 
-if ! $should_reset_android && ! $should_reset_ios && ! $should_reset_selendroid && ! $should_reset_gappium && ! $should_reset_firefoxos && ! $should_reset_realsafari; then
+if ! $should_reset_android && ! $should_reset_ios && ! $should_reset_selendroid && ! $should_reset_gappium && ! $should_reset_firefoxos ; then
     should_reset_android=true
     should_reset_ios=true
     should_reset_selendroid=true
@@ -63,15 +74,15 @@ reset_general() {
     if $hardcore ; then
         echo "* Removing NPM modules"
         run_cmd rm -rf node_modules
+        echo "* Clearing out old .appiumconfig"
+        run_cmd rm -rf ./.appiumconfig
     fi
-    echo "* Clearing out old .appiumconfig"
-    run_cmd rm -rf ./.appiumconfig
-    if $include_dev ; then
-        echo "* Installing new or updated NPM modules (including devDeps)"
-        run_cmd npm install .
-    else
+    if $prod_deps ; then
         echo "* Installing new or updated NPM modules"
         run_cmd npm install --production .
+    else
+        echo "* Installing new or updated NPM modules (including devDeps)"
+        run_cmd npm install .
     fi
     install_status=$?
     set -e
@@ -79,14 +90,36 @@ reset_general() {
         echo "install failed. Trying again with sudo. Only do this if it's not a network error."
         run_cmd sudo npm install .
     fi
-    run_cmd rm -rf build
-    run_cmd mkdir build
+    if $hardcore ; then
+        echo "* Clearing out build dir"
+        run_cmd rm -rf build
+    fi
+    run_cmd mkdir -p build
     echo "* Setting git revision data"
     run_cmd $grunt setGitRev
 }
 
 reset_ios() {
     echo "RESETTING IOS"
+    set +e
+    sdk_ver=$(xcrun --sdk iphonesimulator --show-sdk-version 2>/dev/null)
+    sdk_status=$?
+    set -e
+    if [ $sdk_status -gt 0 ] || [[ "$sdk_ver" != "7."* ]]; then
+      echo "--------------------------------------------------"
+      echo "WARNING: you do not appear to have iOS7 SDK active"
+      echo "--------------------------------------------------"
+    fi
+    echo "* Cloning/updating ForceQuitUnresponsiveApps"
+    run_cmd git submodule update --init submodules/ForceQuitUnresponsiveApps
+    echo "* Building ForceQuitUnresponsiveApps"
+    run_cmd pushd submodules/ForceQuitUnresponsiveApps
+    run_cmd ./build_force_quit.sh
+    run_cmd popd
+    echo "* Moving ForceQuitUnresponsiveApps into build/force_quit"
+    run_cmd rm -rf build/force_quit
+    run_cmd mkdir build/force_quit
+    run_cmd cp -R submodules/ForceQuitUnresponsiveApps/bin/* build/force_quit
     echo "* Cloning/updating instruments-without-delay"
     run_cmd git submodule update --init submodules/instruments-without-delay
     echo "* Building instruments-without-delay"
@@ -99,6 +132,7 @@ reset_ios() {
     run_cmd cp -R submodules/instruments-without-delay/build/* build/iwd
     run_cmd pushd ./assets
     echo "* Unzipping instruments without delay for XCode 4"
+    run_cmd rm -rf ../build/iwd4
     run_cmd unzip iwd4.zip -d ../build/
     run_cmd popd
     echo "* Cloning/updating udidetect"
@@ -107,6 +141,9 @@ reset_ios() {
     run_cmd pushd submodules/udidetect
     run_cmd make
     run_cmd popd
+    echo "* Installing ios-sim-locale"
+    run_cmd rm -f build/ios-sim-locale
+    run_cmd cp assets/ios-sim-locale build/ios-sim-locale
     echo "* Moving udidetect into build/udidetect"
     run_cmd rm -rf build/udidetect
     run_cmd mkdir build/udidetect
@@ -116,6 +153,12 @@ reset_ios() {
     run_cmd cp $appium_home/lib/server/status.js $appium_home/lib/devices/ios/uiauto/lib/status.js
     run_cmd rm -rf $appium_home/lib/devices/ios/uiauto/appium/xpath.js
     run_cmd cp $appium_home/lib/xpath.js $appium_home/lib/devices/ios/uiauto/appium/xpath.js
+    echo "* Cleaning/rebuilding WebViewApp"
+    run_cmd $grunt buildApp:WebViewApp
+    run_cmd rm -rf build/WebViewApp
+    run_cmd mkdir build/WebViewApp
+    run_cmd cp -R sample-code/apps/WebViewApp/build/Release-iphonesimulator/WebViewApp.app \
+        build/WebViewApp/
     if $include_dev ; then
         if $hardcore ; then
             echo "* Clearing out old UICatalog download"
@@ -133,8 +176,6 @@ reset_ios() {
         run_cmd $grunt buildApp:TestApp
         echo "* Cleaning/rebuilding iOS test app: UICatalog"
         run_cmd $grunt buildApp:UICatalog
-        echo "* Cleaning/rebuilding iOS test app: WebViewApp"
-        run_cmd $grunt buildApp:WebViewApp
     fi
     echo "* Setting iOS config to Appium's version"
     run_cmd $grunt setConfigVer:ios
@@ -148,21 +189,29 @@ reset_ios() {
     run_cmd rm -rf build/fruitstrap
     run_cmd mkdir -p build/fruitstrap
     run_cmd cp submodules/fruitstrap/fruitstrap build/fruitstrap
-    echo "* Cloning/updating SafariLauncher"
-    run_cmd git submodule update --init submodules/SafariLauncher
-    echo "* Building SafariLauncher"
-    run_cmd $grunt buildSafariLauncherApp:iphonesimulator
-    echo "* Copying SafariLauncher to build"
-    run_cmd rm -rf build/SafariLauncher
-    run_cmd mkdir -p build/SafariLauncher
-    run_cmd zip -r build/SafariLauncher/SafariLauncherSim submodules/SafariLauncher/build/Release-iphonesimulator/SafariLauncher.app
     if $should_reset_realsafari; then
+        echo "* Cloning/updating SafariLauncher"
+        run_cmd git submodule update --init submodules/SafariLauncher
         echo "* Building SafariLauncher for real devices"
-        run_cmd $grunt buildSafariLauncherApp:iphoneos
+        run_cmd rm -rf build/SafariLauncher
+        run_cmd mkdir -p build/SafariLauncher
+        run_cmd rm -f submodules/Safarilauncher/target.xcconfig
+        echo "BUNDLE_ID = com.bytearc.SafariLauncher" >> submodules/Safarilauncher/target.xcconfig
+        if [[ ! -z $code_sign_identity ]]; then
+          echo "IDENTITY_NAME = " $code_sign_identity >> submodules/Safarilauncher/target.xcconfig
+        else
+          echo "IDENTITY_NAME = iPhone Developer" >> submodules/Safarilauncher/target.xcconfig
+        fi
+        echo "IDENTITY_CODE = " $provisioning_profile >> submodules/Safarilauncher/target.xcconfig
+        run_cmd $grunt buildSafariLauncherApp:iphoneos:"target.xcconfig"
         echo "* Copying SafariLauncher for real devices to build"
         run_cmd zip -r build/SafariLauncher/SafariLauncher submodules/SafariLauncher/build/Release-iphoneos/SafariLauncher.app
     fi
-
+    echo "* Cloning/updating libimobiledevice-macosx"
+    run_cmd git submodule update --init submodules/libimobiledevice-macosx
+    echo "* Copying libimobiledevice-macosx to build"
+    run_cmd rm -rf build/libimobiledevice-macosx
+    run_cmd cp -r submodules/libimobiledevice-macosx build/libimobiledevice-macosx
 }
 
 get_apidemos() {
@@ -317,6 +366,9 @@ main() {
     if $hardcore ; then
         echo "* Hardcore mode is on, will do extra crazy stuff"
     fi
+    if $prod_deps ; then
+        echo "* Prod mode is on, will only install prod deps"
+    fi
     reset_general
     if $should_reset_ios ; then
         reset_ios
@@ -334,6 +386,8 @@ main() {
         reset_gappium
     fi
     cleanup
+    echo "* Setting build time and SHA info"
+    run_cmd $grunt setBuildTime
     reset_successful=true
 }
 

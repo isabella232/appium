@@ -4,7 +4,7 @@
 var should = require('should')
   , childProcess = require('child_process')
   , it = require("../../helpers/driverblock.js").it
-  , android = require('../../../lib/devices/android/android.js')
+  , Android = require('../../../lib/devices/android/android.js')
   , ADB = require('../../../lib/devices/android/adb');
 
 describe('Android Device State module', function() {
@@ -23,10 +23,10 @@ describe('Android Device State module', function() {
   describe('isScreenLocked method', function() {
     it('should return true if screen is locked', function(done) {
       // Press POWER btn to lock screen first
-      childProcess.exec('adb shell input keyevent 26', function(err) {
+      childProcess.exec('adb shell input keyevent 26 && sleep 1', function(err) {
         should.not.exist(err);
-
-        childProcess.exec('adb shell input keyevent 26', function(err) {
+        // press home to get to lock screen
+        childProcess.exec('adb shell input keyevent 3 && sleep 1', function(err) {
           should.not.exist(err);
           deviceState.isScreenLocked(function(err, isLocked) {
             should.not.exist(err);
@@ -38,7 +38,7 @@ describe('Android Device State module', function() {
     });
     it('should return false is screen is unlocked', function(done) {
       // Push unlock.apk first
-      var androidObj = android({});
+      var androidObj = new Android({});
       androidObj.adb = deviceState;
       androidObj.pushUnlock(function(err) {
         should.not.exist(err);

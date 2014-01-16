@@ -18,6 +18,7 @@ var _ = require("underscore")
   , fs = require('fs')
   , helpers = require('./lib/helpers')
   , isWindows = helpers.isWindows()
+  , getXcodeFolder = helpers.getXcodeFolder
   , getXcodeVersion = helpers.getXcodeVersion
   , MAX_BUFFER_SIZE = 524288;
 
@@ -167,74 +168,59 @@ module.exports.setGitRev = function(grunt, rev, cb) {
   exports.writeConfigKey(grunt, "git-sha", rev, cb);
 };
 
-module.exports.authorize = function(grunt, cb) {
-  // somewhat messily ported from penguinho's authorize.py
-  var authFile = '/System/Library/Security/authorization.plist';
-  if (!fs.existsSync(authFile)) {
-    // on Mountain Lion auth is in a different place
-    authFile = '/etc/authorization';
+module.exports.setBuildTime = function(grunt, cb) {
+  var time = new Date();
+  exports.writeConfigKey(grunt, "built", time.toISOString(), cb);
+};
+
+var auth_enableDevTools = function(grunt, cb) {
+  grunt.log.writeln("Enabling DevToolsSecurity");
+  exec('DevToolsSecurity --enable', function(err) {
+    if (err) grunt.fatal(err);
+    cb();
+  });
+};
+
+var auth_updateSecurityDb = function(grunt, insecure, cb) {
+  grunt.log.writeln("Updating security db for " + (insecure ? "insecure" :
+        "developer") + " access");
+  var cmd = "security authorizationdb write system.privilege.taskport " +
+            (insecure ? "allow" : "is-developer");
+  exec(cmd, function(err) {
+    if (err) grunt.fatal(err);
+    cb();
+  });
+};
+
+var auth_chmodApps = function(grunt, cb) {
+  grunt.log.writeln("Granting access to built-in simulator apps");
+  var user;
+  if (!process.env.HOME) {
+    grunt.fatal(new Error("Could not determine your $HOME"));
+  } else {
+    user = /\/([^\/]+)$/.exec(process.env.HOME)[1];
   }
-  exec('DevToolsSecurity --enable', function(err, stdout, stderr) {
-    if (err) throw err;
-    fs.readFile(authFile, 'utf8', function(err, data) {
-      if (err) throw err;
-      var origData = data;
-      var re = /<key>system.privilege.taskport<\/key>\s*\n\s*<dict>\n\s*<key>allow-root<\/key>\n\s*(<[^>]+>)/;
-      var match = re.exec(data);
-      if (!match) {
-        grunt.fatal("Could not find the system.privilege.taskport key in " +
-                    authFile);
-      } else {
-        if (!(/<false\/>/.exec(match[0]))) {
-          console.log(authFile + " has already been modified to support appium");
-          return cb();
-        } else {
-          var newText = match[0].replace(match[1], '<true/>');
-          var newContent = data.replace(match[0], newText);
-          temp.open('authorization.backup.', function (err, info) {
-            fs.write(info.fd, origData);
-            fs.close(info.fd, function(err) {
-              if (err) throw err;
-              grunt.log.writeln("Backed up to " + info.path);
-              var diff = difflib.contextDiff(origData.split("\n"), newContent.split("\n"), {fromfile: "before", tofile: "after"});
-              grunt.log.writeln("Check this diff to make sure the change looks cool:");
-              grunt.log.writeln(diff.join("\n"));
-              prompt.start();
-              var promptProps = {
-                properties: {
-                  proceed: {
-                    pattern: /^(y|n)/
-                    , description: "Make changes? [y/n] "
-                  }
-                }
-              };
-              prompt.get(promptProps, function(err, result) {
-                if (result.proceed == "y") {
-                  fs.writeFile(authFile, newContent, function(err) {
-                    if (err) {
-                      if (err.code === "EACCES") {
-                        grunt.fatal("You need to run this as sudo!");
-                      } else {
-                        throw err;
-                      }
-                    }
-                    grunt.log.writeln("Wrote new " + authFile);
-                    cb();
-                  });
-                } else {
-                  grunt.log.writeln("No changes were made");
-                  cb();
-                }
-              });
-            });
-          });
-        }
-      }
+  getXcodeFolder(function(err, xcodeDir) {
+    if (err) return cb(err);
+    var glob = path.resolve(xcodeDir, "Platforms/iPhoneSimulator.platform/" +
+                            "Developer/SDKs/iPhoneSimulator*.sdk/Applications");
+    var cmd = "chown -R " + user + ": " + glob;
+    exec(cmd, function(err) {
+      if (err) grunt.fatal(err);
+      cb();
     });
   });
 };
 
-module.exports.build = function(appRoot, cb, sdk) {
+module.exports.authorize = function(grunt, insecure, cb) {
+  auth_enableDevTools(grunt, function() {
+    auth_updateSecurityDb(grunt, insecure, function() {
+      auth_chmodApps(grunt, cb);
+    });
+  });
+};
+
+module.exports.build = function(appRoot, cb, sdk, xcconfig) {
   var next = function() {
     var cmd = 'xcodebuild -sdk ' + sdk + ' clean';
     console.log('Using sdk: ' + sdk + '...');
@@ -246,6 +232,9 @@ module.exports.build = function(appRoot, cb, sdk) {
       }
       console.log("Building app...");
       var args = ['-sdk', sdk];
+      if (typeof xcconfig !== "undefined") {
+        args = args.concat(['-xcconfig', xcconfig]);
+      }
       xcode = spawn('xcodebuild', args, {
         cwd: appRoot
       });
@@ -301,7 +290,7 @@ module.exports.signApp = function(appName, certName, cb) {
   });
 };
 
-module.exports.buildSafariLauncherApp = function(cb, sdk) {
+module.exports.buildSafariLauncherApp = function(cb, sdk, xcconfig) {
   var appRoot = path.resolve(__dirname, "submodules", "SafariLauncher");
   module.exports.build(appRoot, function(err) {
     if (err !== null) {
@@ -310,7 +299,7 @@ module.exports.buildSafariLauncherApp = function(cb, sdk) {
     } else {
       cb(true);
     }
-  }, sdk);
+  }, sdk, xcconfig);
 };
 
 
