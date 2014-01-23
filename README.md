@@ -40,7 +40,7 @@ If you want to run Appium via an `npm install`, hack with or contribute to Appiu
 
 To verify that all of Appium's dependencies are met you can use `appium-doctor`.
 Run `appium-doctor` and supply the `--ios` or `--android` flags to verify that all
-of the dependencies are set up correctly. If running from source, you mayve have to use
+of the dependencies are set up correctly. If running from source, you may have to use
 `bin/appium-doctor.js` or `node bin/appium-doctor.js`.
 
 ### iOS Requirements
@@ -134,3 +134,5 @@ of common errors and how to get in touch with the community if you're stumped.
 
 Using Appium with [Tapster](https://github.com/hugs/tapsterbot) and other robots is possible,
 check out the [Appium Robots](https://github.com/appium/robots) project!
+
+[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/appium/appium/trend.png)](https://bitdeli.com/free "Bitdeli Badge")

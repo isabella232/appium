@@ -1,7 +1,7 @@
-/*global describe:true, it:true, beforeEach:true */
 "use strict";
 
-var should = require('should')
+var chai = require('chai')
+  , should = chai.should()
   , childProcess = require('child_process')
   , it = require("../../helpers/driverblock.js").it
   , Android = require('../../../lib/devices/android/android.js')
@@ -14,6 +14,9 @@ describe('Android Device State module', function() {
     childProcess.exec("adb devices", function(err, stdout) {
       should.not.exist(err);
       var device = /\n([A-Za-z0-9\-]+)\W+device\n/.exec(stdout);
+      if (!device) {
+        throw new Error("Looks like device isn't ready for test");
+      }
       device = device[1];
       should.exist(device);
       done();
@@ -23,10 +26,10 @@ describe('Android Device State module', function() {
   describe('isScreenLocked method', function() {
     it('should return true if screen is locked', function(done) {
       // Press POWER btn to lock screen first
-      childProcess.exec('adb shell input keyevent 26 && sleep 1', function(err) {
+      childProcess.exec('adb shell input keyevent 26 && sleep 5', function(err) {
         should.not.exist(err);
         // press home to get to lock screen
-        childProcess.exec('adb shell input keyevent 3 && sleep 1', function(err) {
+        childProcess.exec('adb shell input keyevent 3 && sleep 5', function(err) {
           should.not.exist(err);
           deviceState.isScreenLocked(function(err, isLocked) {
             should.not.exist(err);
@@ -42,7 +45,7 @@ describe('Android Device State module', function() {
       androidObj.adb = deviceState;
       androidObj.pushUnlock(function(err) {
         should.not.exist(err);
-        childProcess.exec('adb shell am start -n io.appium.unlock/.Unlock', function(err) {
+        childProcess.exec('adb shell am start -n io.appium.unlock/.Unlock && sleep 5', function(err) {
           should.not.exist(err);
           setTimeout(function() {
             deviceState.isScreenLocked(function(err, isLocked) {
